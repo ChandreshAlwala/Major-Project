@@ -15,7 +15,6 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
   const llmService = new LLMService();
 
   fastify.post('/recommend', {
-    preHandler: fastify.auth([fastify.authenticate], { optional: true }),
     schema: {
       body: {
         type: 'object',
@@ -41,6 +40,32 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
                   score: { type: 'number' },
                   reason: { type: 'string' },
                   modifications: { type: 'array', items: { type: 'string' } },
+                  missingIngredients: { type: 'array', items: { type: 'string' } },
+                  availableIngredients: { type: 'array', items: { type: 'string' } },
+                  customizedInstructions: { type: 'string' },
+                  recipe: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      title: { type: 'string' },
+                      description: { type: 'string' },
+                      ingredients: { type: 'string' },
+                      steps: { type: 'string' },
+                      cuisine: { type: 'string' },
+                      tags: { type: 'string' },
+                      cookTime: { type: 'number' },
+                      prepTime: { type: 'number' },
+                      totalTime: { type: 'number' },
+                      servings: { type: 'number' },
+                      difficulty: { type: 'string' },
+                      nutrition: { type: 'string' },
+                      imageUrl: { type: 'string' },
+                      sourceUrl: { type: ['string', 'null'] },
+                      createdBy: { type: ['string', 'null'] },
+                      mainIngredients: { type: 'string' },
+                      createdAt: { type: 'string' }
+                    }
+                  }
                 },
               },
             },
@@ -52,24 +77,10 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
     const body = recommendSchema.parse(request.body);
     const userId = body.userId || (request as any).user?.userId;
 
-    // Check if Redis is available for rate limiting
-    if (fastify.redis) {
-      // Rate limiting
-      const clientIp = request.ip;
-      const cacheKey = `rate_limit:${clientIp}`;
-      const currentCount = await fastify.redis.incr(cacheKey);
-      if (currentCount === 1) {
-        await fastify.redis.expire(cacheKey, 60); // 1 minute
-      }
-      if (currentCount > 10) { // 10 requests per minute
-        return reply.code(429).send({ error: 'Rate limit exceeded' });
-      }
-    }
-
     // Get user preferences if logged in
     let userPreferences = null;
     if (userId) {
-      const user = await fastify.prisma.user.findUnique({
+      const user = await (fastify as any).prisma.user.findUnique({
         where: { id: userId },
         select: { preferences: true },
       });
@@ -85,17 +96,6 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
       servings: body.servings,
       allergies: userPreferences?.allergies || [],
     };
-
-    // Check if Redis is available for caching
-    if (fastify.redis) {
-      // Cache key for recommendations
-      const contextHash = JSON.stringify(context);
-      const cacheKeyRec = `recommend:${Buffer.from(contextHash).toString('base64')}`;
-      const cached = await fastify.redis.get(cacheKeyRec);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    }
 
     // Prefilter recipes based on hard constraints
     const where: any = {};
@@ -134,6 +134,7 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
         tags: true,
         cuisine: true, // Add this to enable cuisine matching
         imageUrl: true, // Include image URL for recommendations
+        steps: true, // Include steps for customizing instructions
       },
     });
 
@@ -162,10 +163,40 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
     // Log recommendations for debugging
     console.log('Recommendations:', recommendations);
 
+    // Enhance recommendations with full recipe data
+    const enhancedRecommendations = await Promise.all(recommendations.map(async (rec: any) => {
+      // If recipe data already exists, use it
+      if (rec.recipe) {
+        console.log(`Recipe data already exists for ${rec.id}:`, rec.recipe);
+        return rec;
+      }
+      
+      // Otherwise, fetch full recipe details
+      try {
+        const fullRecipe = await (fastify as any).prisma.recipe.findUnique({
+          where: { id: rec.id }
+        });
+        
+        console.log(`Recipe data fetched for ${rec.id}:`, fullRecipe);
+        
+        return {
+          ...rec,
+          recipe: fullRecipe
+        };
+      } catch (error) {
+        console.error(`Error fetching recipe ${rec.id}:`, error);
+        // Return the recommendation with minimal data if fetch fails
+        return {
+          ...rec,
+          recipe: null
+        };
+      }
+    }));
+
     // Store feedback if user provided
-    if (userId && recommendations.length > 0 && fastify.prisma) {
-      for (const rec of recommendations) {
-        await fastify.prisma.feedback.create({
+    if (userId && enhancedRecommendations.length > 0 && (fastify as any).prisma) {
+      for (const rec of enhancedRecommendations) {
+        await (fastify as any).prisma.feedback.create({
           data: {
             userId,
             context: context,
@@ -177,13 +208,8 @@ export default async function recommendRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Cache result if Redis is available
-    if (fastify.redis) {
-      const contextHash = JSON.stringify(context);
-      const cacheKeyRec = `recommend:${Buffer.from(contextHash).toString('base64')}`;
-      await fastify.redis.setex(cacheKeyRec, 3600, JSON.stringify({ recommendations })); // 1 hour
-    }
+    console.log('Final response:', enhancedRecommendations);
 
-    return { recommendations };
+    return { recommendations: enhancedRecommendations };
   });
 }

@@ -83,8 +83,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       const recipe = await fastify.prisma.recipe.create({
         data: {
           ...recipeData,
+          ingredients: JSON.stringify(recipeData.ingredients),
+          steps: JSON.stringify(recipeData.steps),
+          tags: JSON.stringify(recipeData.tags),
+          nutrition: JSON.stringify(recipeData.nutrition),
           totalTime: recipeData.cookTime + recipeData.prepTime,
-          mainIngredients: recipeData.ingredients.map(i => i.name), // Derive main ingredients
+          mainIngredients: JSON.stringify(recipeData.ingredients.map(i => i.name)), // Derive main ingredients
         },
       });
       createdRecipes.push(recipe);
