@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        button { padding: 5px 10px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Direct API Email Validation Test</h1>
+    
+    <div class="test-case">
+        <h3>Test Invalid Email: "invalid-email"</h3>
+        <button onclick="testEmail('invalid-email')">Test</button>
+        <div id="result-invalid-email"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test Invalid Email: "test@"</h3>
+        <button onclick="testEmail('test@')">Test</button>
+        <div id="result-test-at"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test Valid Email: "test@example.com"</h3>
+        <button onclick="testEmail('test@example.com')">Test</button>
+        <div id="result-valid"></div>
+    </div>
+    
+    <script>
+        async function testEmail(email) {
+            const resultId = email === 'invalid-email' ? 'result-invalid-email' : 
+                            email === 'test@' ? 'result-test-at' : 'result-valid';
+            
+            try {
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        name: 'Test User', 
+                        email: email, 
+                        password: 'password123' 
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById(resultId).innerHTML = 
+                        `<div class="success">SUCCESS: User created with email ${data.user.email}</div>`;
+                } else {
+                    document.getElementById(resultId).innerHTML = 
+                        `<div class="error">ERROR ${response.status}: ${JSON.stringify(data)}</div>`;
+                }
+            } catch (error) {
+                document.getElementById(resultId).innerHTML = 
+                    `<div class="error">NETWORK ERROR: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

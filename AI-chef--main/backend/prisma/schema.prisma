@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  passwordHash String
+  preferences String?  // {diet: string, allergies: string[], cuisines: string[]}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ratings     Rating[]
+  feedbacks   Feedback[]
+  savedRecipes SavedRecipe[]
+  shoppingLists ShoppingList[]
+  sessions    Session[]
+
+  @@map("users")
+}
+
+model Recipe {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  ingredients String     // [{name: string, qty: number, unit: string}]
+  steps       String     // [string]
+  cuisine     String?
+  tags        String?    // [string]
+  cookTime    Int      // minutes
+  prepTime    Int      // minutes
+  totalTime   Int      // minutes
+  servings    Int
+  difficulty  String   // easy, medium, hard
+  nutrition   String?    // {calories: number, protein: number, carbs: number, fat: number}
+  imageUrl    String?
+  sourceUrl   String?
+  createdBy   String?  // user id or null for admin
+  mainIngredients String? // [string] - derived from ingredients
+  createdAt   DateTime @default(now())
+
+  ratings     Rating[]
+  feedbacks   Feedback[]
+  savedRecipes SavedRecipe[]
+
+  @@map("recipes")
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String
+  score     Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@map("ratings")
+}
+
+model Feedback {
+  id                 String   @id @default(cuid())
+  userId             String
+  context            String     // the recommendation context
+  recommendedRecipeId String
+  accepted           Boolean
+  reason             String?
+  createdAt          DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recommendedRecipeId], references: [id], onDelete: Cascade)
+
+  @@map("feedbacks")
+}
+
+model SavedRecipe {
+  id       String @id @default(cuid())
+  userId   String
+  recipeId String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@map("saved_recipes")
+}
+
+model ShoppingList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  items     String     // [{name: string, qty: number, unit: string, checked: boolean}]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("shopping_lists")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model APIKey {
+  id        String   @id @default(cuid())
+  name      String
+  key       String   @unique
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@map("api_keys")
+}

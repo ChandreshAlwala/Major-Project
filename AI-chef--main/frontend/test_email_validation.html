@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Email Validation Test</title>
+</head>
+<body>
+    <h1>Email Validation Test</h1>
+    
+    <form id="signupForm">
+        <div>
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        
+        <div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required minlength="6">
+        </div>
+        
+        <button type="submit">Sign Up</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name, email, password }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = '<p style="color: green;">Success! User created: ' + data.user.email + '</p>';
+                } else {
+                    document.getElementById('result').innerHTML = '<p style="color: red;">Error: ' + (data.error || 'An error occurred') + '</p>';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p style="color: red;">Network error: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+</html>
