@@ -16,6 +16,7 @@ interface Recipe {
   cuisine: string
   tags: string
   imageUrl?: string
+  mainIngredients?: string // Add mainIngredients property
 }
 
 export default function SearchPage() {
@@ -278,6 +279,7 @@ export default function SearchPage() {
                   {filteredRecipes.map((recipe) => {
                     // Parse JSON strings
                     const ingredients = JSON.parse(recipe.ingredients)
+                    const mainIngredients = recipe.mainIngredients ? JSON.parse(recipe.mainIngredients) : []
                     return (
                       <div key={recipe.id} className="card">
                         <div className="h-48 rounded-md mb-4 overflow-hidden">
@@ -301,20 +303,26 @@ export default function SearchPage() {
                           )}
                         </div>
                         <h3 className="text-lg font-semibold mb-2">{recipe.title}</h3>
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-2">{recipe.description}</p>
+                        <p className="text-gray-600 text-sm mb-4 recipe-description">{recipe.description}</p>
                         
-                        <div className="flex flex-wrap gap-1 mb-4">
-                          {ingredients.slice(0, 3).map((ing: any, index: number) => (
-                            <span key={index} className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">
-                              {ing.name}
-                            </span>
-                          ))}
-                          {ingredients.length > 3 && (
-                            <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
-                              +{ingredients.length - 3} more
-                            </span>
-                          )}
-                        </div>
+                        {/* Show main ingredients */}
+                        {mainIngredients.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-sm font-medium text-gray-700">Main Ingredients:</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {mainIngredients.slice(0, 3).map((ing: string, index: number) => (
+                                <span key={index} className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">
+                                  {ing}
+                                </span>
+                              ))}
+                              {mainIngredients.length > 3 && (
+                                <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
+                                  +{mainIngredients.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         
                         <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
                           <span className="flex items-center">

@@ -44,47 +44,30 @@ export default function RecommendPage() {
       const data = await response.json()
       
       console.log('Recommendation response:', data);
+      console.log('Recommendations array:', data.recommendations);
+      if (data.recommendations && data.recommendations.length > 0) {
+        console.log('First recommendation:', data.recommendations[0]);
+        console.log('First recommendation recipe:', data.recommendations[0].recipe);
+      }
       
       if (response.ok) {
-        // Fetch detailed recipe information for the recommendations
-        if (data.recommendations && data.recommendations.length > 0) {
-          // Fetch each recipe individually since the API doesn't support fetching multiple by IDs
-          const detailedRecommendations = await Promise.all(
-            data.recommendations.map(async (rec: any) => {
-              try {
-                const recipeResponse = await fetch(`/api/recipes/${rec.id}`)
-                const recipeData = await recipeResponse.json()
-                return {
-                  ...rec,
-                  ...recipeData.recipe,
-                  reason: rec.reason
-                }
-              } catch (error) {
-                console.error(`Error fetching recipe ${rec.id}:`, error)
-                // Return the recommendation with minimal data if fetch fails
-                return rec
-              }
-            })
-          )
-          
-          setRecommendations(detailedRecommendations)
-        } else {
-          // If no recommendations, show empty state instead of fallback
-          setRecommendations([])
-        }
+        setRecommendations(data.recommendations || [])
       } else {
         setError(data.error || 'Failed to get recommendations')
-        // Don't show fallback recipes on error
         setRecommendations([])
       }
     } catch (error) {
       console.error('Error getting recommendations:', error)
       setError('An error occurred while getting recommendations')
-      // Don't show fallback recipes on error
       setRecommendations([])
     } finally {
       setLoading(false)
     }
+  }
+
+  // Function to encode customized instructions for URL
+  const encodeCustomizedInstructions = (instructions: string) => {
+    return encodeURIComponent(instructions);
   }
 
   return (
@@ -116,7 +99,7 @@ export default function RecommendPage() {
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">AI Recipe Recommendations</h1>
             <p className="text-xl text-gray-600">
-              Tell us what you have and what you want, and we'll find the perfect recipes for you
+              Tell us what you have and what you want, and we&#39;ll find the perfect recipes for you
             </p>
           </div>
 
@@ -143,6 +126,7 @@ export default function RecommendPage() {
                   <p className="mt-1 text-sm text-gray-500">
                     Separate ingredients with commas
                   </p>
+
                 </div>
 
                 <div>
@@ -220,6 +204,7 @@ export default function RecommendPage() {
                     {loading ? 'Finding Recipes...' : 'Get Recommendations'}
                   </button>
                 </div>
+
               </div>
             </form>
           </div>
@@ -233,62 +218,101 @@ export default function RecommendPage() {
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Recommended For You</h2>
               <p className="text-gray-600">
-                Based on your preferences, we think you'll love these recipes
+                Based on your preferences, we think you&#39;ll love these recipes
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {recommendations.map((recipe) => {
+              {recommendations.map((rec) => {
                 // Parse JSON strings
                 let ingredients = [];
+                let mainIngredients = [];
                 try {
-                  ingredients = JSON.parse(recipe.ingredients);
+                  ingredients = JSON.parse(rec.recipe?.ingredients || '[]');
                 } catch (e) {
                   ingredients = [];
                 }
                 
+                try {
+                  mainIngredients = JSON.parse(rec.recipe?.mainIngredients || '[]');
+                } catch (e) {
+                  mainIngredients = [];
+                }
+                
                 return (
-                  <div key={recipe.id} className="card">
+                  <div key={rec.id} className="card">
                     <div className="h-48 bg-gray-200 rounded-md mb-4 flex items-center justify-center">
-                      {recipe.imageUrl ? (
+                      {rec.recipe?.imageUrl ? (
                         <img 
-                          src={recipe.imageUrl} 
-                          alt={recipe.title} 
+                          src={rec.recipe.imageUrl} 
+                          alt={rec.recipe?.title || 'Recipe'} 
                           className="w-full h-full object-cover rounded-md"
+                          onError={(e) => {
+                            // Fallback to chef hat icon if image fails to load
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6l8-4v16"/></svg>';
+                            }
+                          }}
                         />
                       ) : (
                         <ChefHat className="h-12 w-12 text-gray-400" />
                       )}
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">{recipe.title}</h3>
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">{recipe.description}</p>
+                    <h3 className="text-lg font-semibold mb-2">{rec.recipe?.title || 'Untitled Recipe'}</h3>
+                    <p className="text-gray-600 text-sm mb-4 recipe-description">{rec.recipe?.description || 'No description available'}</p>
                     
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {ingredients.slice(0, 3).map((ing: any, index: number) => (
-                        <span key={index} className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">
-                          {ing.name}
-                        </span>
-                      ))}
-                      {ingredients.length > 3 && (
-                        <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
-                          +{ingredients.length - 3} more
-                        </span>
-                      )}
-                    </div>
+                    {/* Show missing ingredients if any */}
+                    {rec.missingIngredients && rec.missingIngredients.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-sm text-orange-600">
+                          Missing: {rec.missingIngredients.join(', ')}
+                        </p>
+                      </div>
+                    )}
                     
-                    <div className="flex items-center justify-between text-sm text-gray-500">
+                    {/* Show main ingredients */}
+                    {mainIngredients.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-sm font-medium text-gray-700">Main Ingredients:</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {mainIngredients.slice(0, 3).map((ing: string, index: number) => (
+                            <span key={index} className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">
+                              {ing}
+                            </span>
+                          ))}
+                          {mainIngredients.length > 3 && (
+                            <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
+                              +{mainIngredients.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
                       <span className="flex items-center">
                         <Clock className="h-4 w-4 mr-1" />
-                        {recipe.cookTime} min
+                        {rec.recipe?.cookTime || 0} min
                       </span>
                       <span className="flex items-center">
                         <Users className="h-4 w-4 mr-1" />
-                        {recipe.servings} servings
+                        {rec.recipe?.servings || 0} servings
                       </span>
                     </div>
                     
                     <div className="mt-4">
-                      <Link href={`/recipe/${recipe.id}`} className="btn-primary w-full text-center block">
+                      <Link 
+                        href={{
+                          pathname: `/recipe/${rec.id}`,
+                          query: rec.customizedInstructions ? { 
+                            customizedInstructions: encodeCustomizedInstructions(rec.customizedInstructions) 
+                          } : {}
+                        }} 
+                        className="btn-primary w-full text-center block"
+                      >
                         View Recipe
                       </Link>
                     </div>
@@ -304,7 +328,7 @@ export default function RecommendPage() {
             <div className="text-center">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">No Recommendations Found</h2>
               <p className="text-gray-600 mb-8">
-                We couldn't find any recipes matching your ingredients. Try adjusting your search terms.
+                We couldn&#39;t find any recipes matching your ingredients. Try adjusting your search terms.
               </p>
               <button 
                 onClick={handleRecommend} 
